@@ -1,0 +1,8 @@
+data/*.csv
+data/*.zip
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+.claude
+superpowers/
+docs/
