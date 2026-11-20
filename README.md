@@ -1,18 +1,26 @@
-# Kasus A — Deteksi Penipuan Pembukaan Rekening
+# Kasus A: Deteksi Penipuan Pembukaan Rekening
 
 Model klasifikasi untuk mendeteksi pengajuan rekening fraud pada dataset **Bank Account Fraud (BAF), Base variant**. Data dibatasi ke `month` 0–3. Target utama: **TPR pada FPR ≤ 5%**.
 
 ## Metode
 
-Dibandingkan Logistic Regression (median imputation + scaling untuk fitur numerik, most-frequent imputation + one-hot encoding untuk fitur kategorikal) dengan LightGBM. Model utama LightGBM memakai `scale_pos_weight` untuk menangani ketidakseimbangan kelas dan mendukung nilai hilang. `month` tidak dipakai sebagai fitur; `device_fraud_count` dikeluarkan karena konstan.
+Compared Logistic Regression, LightGBM, XGBoost, and CatBoost. Each model family receives a small hyperparameter search. Logistic Regression uses median imputation and scaling for numeric features, plus most-frequent imputation and one-hot encoding for categorical features. The tree models use class weighting and their supported categorical and missing-value handling. XGBoost is the saved model: it wins the month 2 tuning comparison (TPR 53.42% vs 52.42% for LightGBM), and month 3 never influenced that choice.
 
 ## Pembagian data
 
-Pembagian berbasis waktu: latih pada bulan 0–2 (397.039 pengajuan) dan validasi pada bulan 3 (150.936 pengajuan). Split ini meniru penilaian pengajuan yang lebih baru, bukan split acak yang dapat mencampur periode waktu. Validasi berisi 1.392 fraud.
+Chronological three-stage evaluation: fit candidate models on months 0 and 1, select hyperparameters and decision thresholds on month 2, and report final metrics once on untouched month 3. Preprocessing, category vocabularies, and threshold decisions exclude month 3. The test set is not used to choose the saved model.
 
 ## Hasil validasi
 
-LightGBM mencapai **TPR@FPR5% = 52,23%**, pada **FPR = 4,9818%** (threshold 0,801168). ROC AUC diagnostik: Logistic Regression 0,8913; LightGBM 0,8992. TPR dihitung pada titik ROC terakhir yang memenuhi FPR ≤ 5%, tanpa interpolasi.
+Thresholds were selected on month 2 with the target FPR limit, then frozen before month 3 evaluation. Month 3 metrics use those fixed thresholds, not new test-set thresholds.
+| Model | Month 2 TPR at FPR 5% | Month 3 ROC AUC | Month 3 TPR | Month 3 FPR | Month 3 precision |
+|---|---:|---:|---:|---:|---:|
+| Logistic Regression | 47.33% | 0.8898 | 62.50% | 8.08% | 6.72% |
+| LightGBM | 52.42% | 0.9078 | 67.24% | 8.79% | 6.65% |
+| XGBoost | 53.42% | 0.9134 | 68.68% | 8.76% | 6.80% |
+| CatBoost | 53.42% | 0.9120 | 68.53% | 8.65% | 6.87% |
+
+Month 3 FPR exceeds five percent for every model, showing the effect of temporal drift. XGBoost has the highest holdout AUC, TPR, and FPR stays comparable to the other tree models, while CatBoost has the highest precision. XGBoost was selected on month 2 only; the holdout confirmed but did not drive the choice.
 
 ## Catatan
 
@@ -20,4 +28,4 @@ LightGBM mencapai **TPR@FPR5% = 52,23%**, pada **FPR = 4,9818%** (threshold 0,80
 
 ## Jalankan
 
-Simpan `Base.csv` di `data/Base.csv`, install paket dari `requirements.txt`, lalu jalankan notebook dari atas ke bawah. Notebook menghasilkan `model.pkl`. Untuk prediksi LightGBM, kategorikal harus diubah ke pandas category memakai kategori dan urutan yang dipakai saat training; gunakan pola casting dalam sel LightGBM notebook.
+Place `Base.csv` at `data/Base.csv`, install packages from `requirements.txt`, then run the notebook from top to bottom. The notebook trains and exports `model.pkl`. For XGBoost predictions, cast categorical inputs to the pandas categorical dtype using the training category vocabulary and column order shown in the notebook.
